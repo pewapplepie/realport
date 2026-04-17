@@ -1,8 +1,17 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f7f4f2;
+  --foreground: #201b26;
+  --surface: #ffffff;
+  --muted: #6f6578;
+  --line: #e3dce8;
+  --accent: #564b69;
+  --accent-strong: #3c334c;
+  --accent-soft: #eee9f4;
+  --cyan: #477a87;
+  --rose: #a3545c;
+  --gold: #b6854e;
 }
 
 @theme inline {
@@ -12,15 +21,93 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+body {
+  background:
+    radial-gradient(circle at top left, rgba(86, 75, 105, 0.16), transparent 28rem),
+    radial-gradient(circle at 85% 8%, rgba(182, 133, 78, 0.12), transparent 24rem),
+    linear-gradient(180deg, #fbfaf8 0%, var(--background) 100%);
+  color: var(--foreground);
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+::selection {
+  background: rgba(86, 75, 105, 0.2);
+}
+
+.bg-slate-50 {
+  background-color: var(--background) !important;
+}
+
+.text-emerald-50,
+.text-emerald-100,
+.text-emerald-200,
+.text-emerald-300,
+.text-emerald-400,
+.text-emerald-500,
+.text-emerald-600,
+.text-emerald-700,
+.text-emerald-800,
+.text-emerald-900 {
+  color: var(--accent) !important;
+}
+
+.bg-emerald-50,
+.bg-emerald-100 {
+  background-color: var(--accent-soft) !important;
+}
+
+.bg-emerald-500,
+.bg-emerald-600,
+.bg-emerald-700,
+.bg-emerald-800 {
+  background-color: var(--accent) !important;
+}
+
+.hover\:bg-emerald-400:hover,
+.hover\:bg-emerald-500:hover,
+.hover\:bg-emerald-600:hover,
+.hover\:bg-emerald-700:hover,
+.hover\:bg-emerald-800:hover {
+  background-color: var(--accent-strong) !important;
+}
+
+.hover\:text-emerald-600:hover,
+.hover\:text-emerald-700:hover,
+.hover\:text-emerald-800:hover {
+  color: var(--accent-strong) !important;
+}
+
+.border-emerald-50,
+.border-emerald-100,
+.border-emerald-200,
+.border-emerald-600 {
+  border-color: var(--line) !important;
+}
+
+.focus\:border-emerald-500:focus,
+.focus\:border-emerald-600:focus {
+  border-color: var(--accent) !important;
+}
+
+.focus\:ring-emerald-500:focus,
+.focus\:ring-emerald-600:focus {
+  --tw-ring-color: rgba(86, 75, 105, 0.24) !important;
+}
+
+.rounded-xl,
+.rounded-2xl,
+.rounded-full {
+  border-radius: 0.5rem !important;
+}
+
+[class*="tracking"] {
+  letter-spacing: 0 !important;
+}
+
+input,
+select,
+textarea,
+button,
+a {
+  text-underline-offset: 0.2em;
 }

@@ -1,36 +1,63 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# RealPort
 
-## Getting Started
+RealPort is a Next.js portfolio app for tracking real-estate properties,
+transactions, dashboard analytics, leverage opportunities, and buy-vs-rent
+scenario analysis.
 
-First, run the development server:
+## Local Development
+
+Install dependencies and start the app:
+
+```bash
+npm install
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000).
+
+## Firebase Setup
+
+The app uses Firebase Admin SDK on the server and stores app data in Cloud
+Firestore collections:
+
+- `users`
+- `properties`
+- `transactions`
+
+For local API-route development, copy `.env.example` to `.env` and fill in:
+
+```bash
+JWT_SECRET="replace-with-a-long-random-secret"
+FIREBASE_PROJECT_ID="your-firebase-project-id"
+FIREBASE_CLIENT_EMAIL="firebase-adminsdk-xxxxx@your-project.iam.gserviceaccount.com"
+FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+```
+
+For Firebase App Hosting, connect this GitHub repository in the Firebase
+console. The Firebase Admin SDK can use the default Google credentials in that
+environment. Set `JWT_SECRET` as a runtime secret before publishing.
+
+## Deployment
+
+This is a full-stack Next.js app with API routes, so use Firebase App Hosting
+instead of GitHub Pages. In Firebase Console:
+
+1. Create or select a Firebase project.
+2. Enable Cloud Firestore.
+3. Open App Hosting and create a backend.
+4. Connect the GitHub repo and choose the `main` branch.
+5. Set the app root directory to `/`.
+6. Add a runtime secret named `JWT_SECRET`.
+7. Deploy.
+
+After the backend is created, each push to the connected branch can trigger a
+new rollout.
+
+## Scripts
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm run lint
+npm run build
+npm run start
 ```
-
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
