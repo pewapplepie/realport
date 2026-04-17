@@ -9,6 +9,8 @@ type PurchaseInput = {
   downPaymentPercent: number;
   mortgageRate: number;
   mortgageYears: number;
+  monthlyHoa: number;
+  monthlyTax: number;
   equityLoanRate: number;
   equityLoanYears: number;
 };
@@ -53,6 +55,8 @@ const defaultPurchase: PurchaseInput = {
   downPaymentPercent: 10,
   mortgageRate: 6,
   mortgageYears: 30,
+  monthlyHoa: 0,
+  monthlyTax: 0,
   equityLoanRate: 5,
   equityLoanYears: 30,
 };
@@ -256,6 +260,11 @@ function calculateOpportunity(
       mortgageRate,
       mortgageYears
     );
+    const carryingCost =
+      equityLoanPayment +
+      mortgagePayment +
+      purchase.monthlyHoa +
+      purchase.monthlyTax;
 
     return {
       ...purchase,
@@ -271,6 +280,7 @@ function calculateOpportunity(
       mortgageMonthlyRate: mortgageRate / 100 / 12,
       equityLoanMonths: equityLoanYears * 12,
       mortgageMonths: mortgageYears * 12,
+      carryingCost,
     };
   });
 
@@ -303,6 +313,14 @@ function calculateOpportunity(
     (sum, purchase) => sum + purchase.mortgagePayment,
     0
   );
+  const purchaseHoa = purchaseResults.reduce(
+    (sum, purchase) => sum + purchase.monthlyHoa,
+    0
+  );
+  const purchaseTax = purchaseResults.reduce(
+    (sum, purchase) => sum + purchase.monthlyTax,
+    0
+  );
   const totalRent = existingPropertyResults.reduce(
     (sum, property) => sum + property.rent,
     0
@@ -317,13 +335,16 @@ function calculateOpportunity(
   );
   const existingNetCashFlow =
     overrides.existingNetCashFlow ?? baseCashFlow;
-  const totalDebtPayment = equityLoanPayment + mortgagePayment;
-  const netMonthlyCost = totalDebtPayment - existingNetCashFlow;
+  const totalPurchaseMonthlyCost =
+    equityLoanPayment + mortgagePayment + purchaseHoa + purchaseTax;
+  const netMonthlyCost = totalPurchaseMonthlyCost - existingNetCashFlow;
   const monthlyGrossIncome = inputs.annualIncome / 12;
   const netCostToGrossIncome =
     monthlyGrossIncome > 0 ? (netMonthlyCost / monthlyGrossIncome) * 100 : 0;
   const debtToGrossIncome =
-    monthlyGrossIncome > 0 ? (totalDebtPayment / monthlyGrossIncome) * 100 : 0;
+    monthlyGrossIncome > 0
+      ? (totalPurchaseMonthlyCost / monthlyGrossIncome) * 100
+      : 0;
 
   return {
     purchaseResults,
@@ -333,10 +354,13 @@ function calculateOpportunity(
     mortgagePrincipal,
     equityLoanPayment,
     mortgagePayment,
+    purchaseHoa,
+    purchaseTax,
     totalRent,
     existingPropertyCost,
     existingNetCashFlow,
-    totalDebtPayment,
+    totalDebtPayment: totalPurchaseMonthlyCost,
+    totalPurchaseMonthlyCost,
     netMonthlyCost,
     monthlyGrossIncome,
     netCostToGrossIncome,
@@ -809,6 +833,20 @@ export default function OpportunityPage() {
                           updatePurchase(purchase.id, { mortgageYears: value })
                         }
                       />
+                      <MoneyField
+                        label="Monthly HOA"
+                        value={purchase.monthlyHoa}
+                        onChange={(value) =>
+                          updatePurchase(purchase.id, { monthlyHoa: value })
+                        }
+                      />
+                      <MoneyField
+                        label="Monthly tax"
+                        value={purchase.monthlyTax}
+                        onChange={(value) =>
+                          updatePurchase(purchase.id, { monthlyTax: value })
+                        }
+                      />
                     </div>
 
                     <div className="mt-4 border-t border-stone-200 pt-4">
@@ -841,6 +879,52 @@ export default function OpportunityPage() {
                             })
                           }
                         />
+                      </div>
+                    </div>
+
+                    <div className="mt-4 border-t border-stone-200 pt-4">
+                      <p className="text-sm font-semibold text-stone-950">
+                        Monthly carrying cost
+                      </p>
+                      <p className="mt-1 text-sm text-stone-500">
+                        Loan payments plus this purchase&apos;s HOA and tax.
+                      </p>
+                      <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                        <div className="rounded-lg border border-stone-200 bg-white p-3">
+                          <p className="text-xs font-medium uppercase text-stone-500">
+                            Equity loan
+                          </p>
+                          <p className="mt-2 text-lg font-semibold text-stone-950">
+                            {formatCurrency(purchaseResult?.equityLoanPayment ?? 0)}
+                          </p>
+                        </div>
+                        <div className="rounded-lg border border-stone-200 bg-white p-3">
+                          <p className="text-xs font-medium uppercase text-stone-500">
+                            Mortgage
+                          </p>
+                          <p className="mt-2 text-lg font-semibold text-stone-950">
+                            {formatCurrency(purchaseResult?.mortgagePayment ?? 0)}
+                          </p>
+                        </div>
+                        <div className="rounded-lg border border-stone-200 bg-white p-3">
+                          <p className="text-xs font-medium uppercase text-stone-500">
+                            HOA + tax
+                          </p>
+                          <p className="mt-2 text-lg font-semibold text-stone-950">
+                            {formatCurrency(
+                              (purchaseResult?.monthlyHoa ?? 0) +
+                                (purchaseResult?.monthlyTax ?? 0)
+                            )}
+                          </p>
+                        </div>
+                        <div className="rounded-lg border border-[#E3DCE8] bg-[#F4F0F8] p-3">
+                          <p className="text-xs font-medium uppercase text-stone-500">
+                            Carry total
+                          </p>
+                          <p className="mt-2 text-lg font-semibold text-stone-950">
+                            {formatCurrency(purchaseResult?.carryingCost ?? 0)}
+                          </p>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -899,7 +983,7 @@ export default function OpportunityPage() {
 
                     <div className="grid gap-4 sm:grid-cols-3">
                       <MoneyField
-                        label="Monthly rent"
+                        label="Monthly rental income"
                         value={property.rent}
                         onChange={(value) =>
                           updateExistingProperty(property.id, { rent: value })
@@ -959,13 +1043,13 @@ export default function OpportunityPage() {
         <aside className="lg:sticky lg:top-6 lg:self-start">
           <div className="rounded-xl border border-[#E3DCE8] bg-white p-6 shadow-[0_24px_70px_rgba(32,27,38,0.1)]">
             <p className="text-sm font-semibold uppercase text-stone-500">
-              Estimated monthly cost
+              Estimated monthly expense
             </p>
             <p className="mt-3 text-5xl font-semibold text-stone-950">
               {formatCurrency(results.netMonthlyCost)}
             </p>
             <p className="mt-3 text-sm leading-6 text-stone-500">
-              Total debt service across purchases minus total cash flow from
+              Total purchase expense across new homes minus total cash flow from
               existing properties.
             </p>
 
@@ -974,10 +1058,10 @@ export default function OpportunityPage() {
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <p className="text-xs font-semibold uppercase text-stone-500">
-                      Total loan monthly cost
+                      Total purchase monthly expense
                     </p>
                     <p className="mt-2 text-2xl font-semibold text-stone-950">
-                      {formatCurrency(results.totalDebtPayment)}
+                      {formatCurrency(results.totalPurchaseMonthlyCost)}
                     </p>
                   </div>
                   <span className="rounded-lg bg-white px-3 py-1 text-xs font-semibold text-rose-700">
@@ -993,6 +1077,16 @@ export default function OpportunityPage() {
                   <ResultRow
                     label="New mortgages"
                     value={formatCurrency(results.mortgagePayment)}
+                    tone="cost"
+                  />
+                  <ResultRow
+                    label="Purchase HOA"
+                    value={formatCurrency(results.purchaseHoa)}
+                    tone="cost"
+                  />
+                  <ResultRow
+                    label="Purchase taxes"
+                    value={formatCurrency(results.purchaseTax)}
                     tone="cost"
                   />
                 </div>
@@ -1063,8 +1157,9 @@ export default function OpportunityPage() {
             </div>
 
             <div className="mt-6 border-t border-[#E3DCE8] pt-4 text-sm text-[#564B69]">
-              {formatCurrency(results.totalDebtPayment)} total loan monthly
-              cost - {formatCurrency(results.existingNetCashFlow)} cash flow ={" "}
+              {formatCurrency(results.totalPurchaseMonthlyCost)} total purchase
+              monthly expense - {formatCurrency(results.existingNetCashFlow)} cash
+              flow ={" "}
               <span className="font-semibold">
                 {formatCurrency(results.netMonthlyCost)} per month
               </span>
@@ -1077,15 +1172,15 @@ export default function OpportunityPage() {
               <div className="mt-4 space-y-4 text-sm leading-6 text-stone-600">
                 <div>
                   <p className="font-medium text-stone-950">
-                    Monthly loan payment
+                    Monthly purchase cost
                   </p>
                   <code className="mt-2 block overflow-x-auto rounded-lg bg-[#F7F4F2] px-3 py-2 font-mono text-xs text-[#3C334C]">
                     M = P x (i(1 + i)^n) / ((1 + i)^n - 1)
                   </code>
                   <p className="mt-2">
                     Each purchase runs this formula for its synced equity loan
-                    and mortgage. The page then sums all equity loan payments
-                    and all mortgage payments.
+                    and mortgage, then adds that purchase&apos;s monthly HOA and
+                    monthly tax.
                   </p>
                 </div>
 
@@ -1114,6 +1209,16 @@ export default function OpportunityPage() {
                         </span>
                         .
                       </p>
+                      <p>
+                        Carrying cost: {formatCurrency(purchase.equityLoanPayment)}{" "}
+                        + {formatCurrency(purchase.mortgagePayment)} +{" "}
+                        {formatCurrency(purchase.monthlyHoa)} HOA +{" "}
+                        {formatCurrency(purchase.monthlyTax)} tax ={" "}
+                        <span className="font-semibold text-stone-950">
+                          {formatCurrency(purchase.carryingCost)}
+                        </span>
+                        .
+                      </p>
                     </div>
                   ))}
                 </div>
@@ -1123,11 +1228,12 @@ export default function OpportunityPage() {
                     Net monthly housing cost
                   </p>
                   <code className="mt-2 block overflow-x-auto rounded-lg bg-[#F7F4F2] px-3 py-2 font-mono text-xs text-[#3C334C]">
-                    Net cost = total loan monthly cost - total cash flow
+                    Net expense = total purchase monthly expense - total cash flow
                   </code>
                   <p className="mt-2">
-                    Current scenario: {formatCurrency(results.totalDebtPayment)}{" "}
-                    - {formatCurrency(results.existingNetCashFlow)} ={" "}
+                    Current scenario:{" "}
+                    {formatCurrency(results.totalPurchaseMonthlyCost)} -{" "}
+                    {formatCurrency(results.existingNetCashFlow)} ={" "}
                     <span className="font-semibold text-stone-950">
                       {formatCurrency(results.netMonthlyCost)}
                     </span>
