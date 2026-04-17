@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { useAuth } from "@/components/AuthProvider";
+import { deleteProperty, listProperties } from "@/lib/client-store";
 
 interface Property {
   id: string;
@@ -26,30 +28,27 @@ function fmt(n: number) {
 
 export default function PropertiesPage() {
   const router = useRouter();
+  const { firebaseUser, loading: authLoading } = useAuth();
   const [properties, setProperties] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/properties")
-      .then((r) => {
-        if (r.status === 401) {
-          router.push("/login");
-          return null;
-        }
-        return r.json();
-      })
-      .then((data) => {
-        if (data) setProperties(data.properties);
-        setLoading(false);
-      });
-  }, [router]);
+    if (authLoading) return;
+    if (!firebaseUser) {
+      router.push("/login");
+      return;
+    }
+
+    listProperties(firebaseUser.uid)
+      .then(setProperties)
+      .finally(() => setLoading(false));
+  }, [authLoading, firebaseUser, router]);
 
   const handleDelete = async (id: string) => {
     if (!confirm("Delete this property? All transactions will also be deleted."))
       return;
 
-    const res = await fetch(`/api/properties/${id}`, { method: "DELETE" });
-    if (res.ok) {
+    if (firebaseUser && (await deleteProperty(firebaseUser.uid, id))) {
       setProperties((prev) => prev.filter((p) => p.id !== id));
     }
   };
@@ -99,7 +98,7 @@ export default function PropertiesPage() {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                   <Link
-                    href={`/properties/${p.id}`}
+                    href={`/properties/detail?id=${p.id}`}
                     className="text-lg font-semibold text-emerald-600 hover:text-emerald-700"
                   >
                     {p.name}
@@ -126,7 +125,7 @@ export default function PropertiesPage() {
                   </div>
                   <div className="flex gap-2">
                     <Link
-                      href={`/properties/${p.id}/edit`}
+                      href={`/properties/edit?id=${p.id}`}
                       className="px-3 py-1.5 text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-colors"
                     >
                       Edit

@@ -1,37 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { use } from "react";
-
-interface Transaction {
-  id: string;
-  type: string;
-  category: string;
-  amount: number;
-  description: string;
-  date: string;
-}
-
-interface Property {
-  id: string;
-  name: string;
-  address: string;
-  city: string;
-  state: string;
-  zipCode: string;
-  propertyType: string;
-  purchasePrice: number;
-  currentValue: number;
-  purchaseDate: string;
-  bedrooms: number;
-  bathrooms: number;
-  squareFeet: number;
-  monthlyRent: number;
-  notes: string;
-  transactions: Transaction[];
-}
+import { useAuth } from "@/components/AuthProvider";
+import { getPropertyWithTransactions } from "@/lib/client-store";
+import type { PropertyWithTransactions } from "@/lib/types";
 
 function fmt(n: number) {
   return new Intl.NumberFormat("en-US", {
@@ -41,30 +15,53 @@ function fmt(n: number) {
   }).format(n);
 }
 
-export default function PropertyDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id } = use(params);
+export default function PropertyDetailPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="max-w-5xl mx-auto px-4 py-12">
+          <div className="animate-pulse space-y-4">
+            <div className="h-8 bg-slate-200 rounded w-64" />
+            <div className="h-48 bg-slate-200 rounded-xl" />
+          </div>
+        </div>
+      }
+    >
+      <PropertyDetailContent />
+    </Suspense>
+  );
+}
+
+function PropertyDetailContent() {
   const router = useRouter();
-  const [property, setProperty] = useState<Property | null>(null);
+  const searchParams = useSearchParams();
+  const id = searchParams.get("id");
+  const { firebaseUser, loading: authLoading } = useAuth();
+  const [property, setProperty] = useState<PropertyWithTransactions | null>(
+    null
+  );
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`/api/properties/${id}`)
-      .then((r) => {
-        if (r.status === 401) {
-          router.push("/login");
-          return null;
-        }
-        return r.json();
-      })
-      .then((data) => {
-        if (data?.property) setProperty(data.property);
-        setLoading(false);
-      });
-  }, [id, router]);
+    if (authLoading) return;
+    if (!firebaseUser) {
+      router.push("/login");
+      return;
+    }
+    if (!id) return;
+
+    getPropertyWithTransactions(firebaseUser.uid, id)
+      .then(setProperty)
+      .finally(() => setLoading(false));
+  }, [authLoading, firebaseUser, id, router]);
+
+  if (!id) {
+    return (
+      <div className="max-w-5xl mx-auto px-4 py-12 text-center">
+        <p className="text-slate-500 text-lg">Property not found.</p>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -104,7 +101,7 @@ export default function PropertyDetailPage({
           </p>
         </div>
         <Link
-          href={`/properties/${property.id}/edit`}
+          href={`/properties/edit?id=${property.id}`}
           className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium rounded-lg transition-colors"
         >
           Edit

@@ -3,6 +3,9 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { useAuth } from "@/components/AuthProvider";
+import { listPropertiesWithTransactions } from "@/lib/client-store";
+import { buildPortfolioAnalytics } from "@/lib/portfolio-analytics";
 import StatCard from "@/components/StatCard";
 import {
   BarChart,
@@ -67,23 +70,21 @@ function fmt(n: number) {
 
 export default function DashboardPage() {
   const router = useRouter();
+  const { firebaseUser, loading: authLoading } = useAuth();
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/analytics")
-      .then((r) => {
-        if (r.status === 401) {
-          router.push("/login");
-          return null;
-        }
-        return r.json();
-      })
-      .then((d) => {
-        if (d) setData(d);
-        setLoading(false);
-      });
-  }, [router]);
+    if (authLoading) return;
+    if (!firebaseUser) {
+      router.push("/login");
+      return;
+    }
+
+    listPropertiesWithTransactions(firebaseUser.uid)
+      .then((properties) => setData(buildPortfolioAnalytics(properties)))
+      .finally(() => setLoading(false));
+  }, [authLoading, firebaseUser, router]);
 
   if (loading) {
     return (
@@ -276,7 +277,7 @@ export default function DashboardPage() {
                   <tr key={p.id} className="hover:bg-slate-50">
                     <td className="px-6 py-4">
                       <Link
-                        href={`/properties/${p.id}`}
+                        href={`/properties/detail?id=${p.id}`}
                         className="text-sm font-medium text-emerald-600 hover:text-emerald-700"
                       >
                         {p.name}

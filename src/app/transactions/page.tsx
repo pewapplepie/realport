@@ -3,6 +3,14 @@
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import TransactionForm from "@/components/TransactionForm";
+import { useAuth } from "@/components/AuthProvider";
+import {
+  createTransaction,
+  deleteTransaction,
+  listProperties,
+  listTransactions,
+} from "@/lib/client-store";
+import type { TransactionInput } from "@/lib/types";
 
 interface Transaction {
   id: string;
@@ -50,6 +58,7 @@ function TransactionsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const propertyId = searchParams.get("propertyId");
+  const { firebaseUser, loading: authLoading } = useAuth();
 
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [properties, setProperties] = useState<Property[]>([]);
@@ -57,43 +66,36 @@ function TransactionsContent() {
   const [showForm, setShowForm] = useState(false);
 
   const loadData = () => {
-    const url = propertyId
-      ? `/api/transactions?propertyId=${propertyId}`
-      : "/api/transactions";
+    if (!firebaseUser) return;
 
     Promise.all([
-      fetch(url).then((r) => {
-        if (r.status === 401) {
-          router.push("/login");
-          return null;
-        }
-        return r.json();
-      }),
-      fetch("/api/properties").then((r) => r.json()),
+      listTransactions(firebaseUser.uid, propertyId || undefined),
+      listProperties(firebaseUser.uid),
     ]).then(([txData, propData]) => {
-      if (txData) setTransactions(txData.transactions);
-      if (propData) setProperties(propData.properties);
+      setTransactions(txData);
+      setProperties(propData);
       setLoading(false);
     });
   };
 
   useEffect(() => {
-    loadData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [propertyId]);
-
-  const handleSubmit = async (data: Record<string, unknown>) => {
-    const res = await fetch("/api/transactions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
-
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error);
+    if (authLoading) return;
+    if (!firebaseUser) {
+      router.push("/login");
+      return;
     }
 
+    loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authLoading, firebaseUser, propertyId]);
+
+  const handleSubmit = async (data: Record<string, unknown>) => {
+    if (!firebaseUser) {
+      router.push("/login");
+      return;
+    }
+
+    await createTransaction(firebaseUser.uid, data as TransactionInput);
     setShowForm(false);
     setLoading(true);
     loadData();
@@ -101,8 +103,8 @@ function TransactionsContent() {
 
   const handleDelete = async (id: string) => {
     if (!confirm("Delete this transaction?")) return;
-    const res = await fetch(`/api/transactions/${id}`, { method: "DELETE" });
-    if (res.ok) {
+
+    if (firebaseUser && (await deleteTransaction(firebaseUser.uid, id))) {
       setTransactions((prev) => prev.filter((t) => t.id !== id));
     }
   };

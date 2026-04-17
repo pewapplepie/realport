@@ -1,8 +1,15 @@
 # RealPort
 
-RealPort is a Next.js portfolio app for tracking real-estate properties,
+RealPort is a static Next.js app for tracking real-estate properties,
 transactions, dashboard analytics, leverage opportunities, and buy-vs-rent
 scenario analysis.
+
+The deployed app is designed for GitHub Pages plus Firebase Spark:
+
+- GitHub Pages serves the static site from `out/`.
+- Firebase Authentication handles email/password sign-in.
+- Cloud Firestore stores each user's properties and transactions.
+- Firestore security rules limit users to their own records.
 
 ## Local Development
 
@@ -17,41 +24,38 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ## Firebase Setup
 
-The app uses Firebase Admin SDK on the server and stores app data in Cloud
-Firestore collections:
+Enable these Firebase products:
 
-- `users`
-- `properties`
-- `transactions`
+1. Authentication → Sign-in method → Email/Password
+2. Firestore Database
 
-For local API-route development, copy `.env.example` to `.env` and fill in:
+Deploy the Firestore rules:
 
 ```bash
-JWT_SECRET="replace-with-a-long-random-secret"
-FIREBASE_PROJECT_ID="your-firebase-project-id"
-FIREBASE_CLIENT_EMAIL="firebase-adminsdk-xxxxx@your-project.iam.gserviceaccount.com"
-FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+firebase deploy --only firestore:rules
 ```
 
-For Firebase App Hosting, connect this GitHub repository in the Firebase
-console. The Firebase Admin SDK can use the default Google credentials in that
-environment. Set `JWT_SECRET` as a runtime secret before publishing.
+The committed web config points at the `realport-e8abb` Firebase web app. To use
+another project locally, copy `.env.example` to `.env.local` and set the
+`NEXT_PUBLIC_FIREBASE_*` values.
 
-## Deployment
+## GitHub Pages
 
-This is a full-stack Next.js app with API routes, so use Firebase App Hosting
-instead of GitHub Pages. In Firebase Console:
+The workflow at `.github/workflows/deploy-pages.yml` builds the static app and
+publishes `out/` to GitHub Pages.
 
-1. Create or select a Firebase project.
-2. Enable Cloud Firestore.
-3. Open App Hosting and create a backend.
-4. Connect the GitHub repo and choose the `main` branch.
-5. Set the app root directory to `/`.
-6. Add a runtime secret named `JWT_SECRET`.
-7. Deploy.
+In GitHub:
 
-After the backend is created, each push to the connected branch can trigger a
-new rollout.
+1. Open repository Settings.
+2. Go to Pages.
+3. Set Source to GitHub Actions.
+4. Push to `main`.
+
+The project Pages URL should be:
+
+```text
+https://pewapplepie.github.io/realport/
+```
 
 ## Scripts
 
@@ -59,5 +63,4 @@ new rollout.
 npm run dev
 npm run lint
 npm run build
-npm run start
 ```

@@ -2,22 +2,21 @@
 
 import { useRouter } from "next/navigation";
 import PropertyForm from "@/components/PropertyForm";
+import { useAuth } from "@/components/AuthProvider";
+import { createProperty } from "@/lib/client-store";
+import type { PropertyInput } from "@/lib/types";
 
 export default function NewPropertyPage() {
   const router = useRouter();
+  const { firebaseUser } = useAuth();
 
   const handleSubmit = async (data: Record<string, unknown>) => {
-    const res = await fetch("/api/properties", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
-
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error);
+    if (!firebaseUser) {
+      router.push("/login");
+      return;
     }
 
+    await createProperty(firebaseUser.uid, data as PropertyInput);
     router.push("/properties");
   };
 
