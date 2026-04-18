@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { formatMoneyInput, parseMoneyInput } from "@/lib/money-input";
 
 interface PropertyFormProps {
   initialData?: {
@@ -30,6 +31,15 @@ export default function PropertyForm({
 }: PropertyFormProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [purchasePriceInput, setPurchasePriceInput] = useState(
+    initialData?.purchasePrice ? formatMoneyInput(initialData.purchasePrice) : ""
+  );
+  const [currentValueInput, setCurrentValueInput] = useState(
+    initialData?.currentValue ? formatMoneyInput(initialData.currentValue) : ""
+  );
+  const [monthlyRentInput, setMonthlyRentInput] = useState(
+    initialData?.monthlyRent ? formatMoneyInput(initialData.monthlyRent) : ""
+  );
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -44,13 +54,13 @@ export default function PropertyForm({
       state: formData.get("state") as string,
       zipCode: formData.get("zipCode") as string,
       propertyType: formData.get("propertyType") as string,
-      purchasePrice: parseFloat(formData.get("purchasePrice") as string),
-      currentValue: parseFloat(formData.get("currentValue") as string),
+      purchasePrice: parseMoneyInput(formData.get("purchasePrice") as string),
+      currentValue: parseMoneyInput(formData.get("currentValue") as string),
       purchaseDate: formData.get("purchaseDate") as string,
       bedrooms: parseInt(formData.get("bedrooms") as string) || 0,
       bathrooms: parseFloat(formData.get("bathrooms") as string) || 0,
       squareFeet: parseInt(formData.get("squareFeet") as string) || 0,
-      monthlyRent: parseFloat(formData.get("monthlyRent") as string) || 0,
+      monthlyRent: parseMoneyInput(formData.get("monthlyRent") as string),
       notes: formData.get("notes") as string,
     };
 
@@ -155,9 +165,23 @@ export default function PropertyForm({
           </label>
           <input
             name="purchasePrice"
-            type="number"
-            step="0.01"
-            defaultValue={initialData?.purchasePrice}
+            type="text"
+            inputMode="decimal"
+            value={purchasePriceInput}
+            onChange={(event) => {
+              const nextValue = event.target.value;
+              const formattedValue =
+                nextValue.trim() === ""
+                  ? ""
+                  : formatMoneyInput(parseMoneyInput(nextValue));
+              event.target.value = formattedValue;
+              setPurchasePriceInput(formattedValue);
+            }}
+            onFocus={(event) => {
+              if (!purchasePriceInput || parseMoneyInput(purchasePriceInput) === 0) {
+                event.target.select();
+              }
+            }}
             required
             className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-slate-900"
           />
@@ -168,9 +192,23 @@ export default function PropertyForm({
           </label>
           <input
             name="currentValue"
-            type="number"
-            step="0.01"
-            defaultValue={initialData?.currentValue}
+            type="text"
+            inputMode="decimal"
+            value={currentValueInput}
+            onChange={(event) => {
+              const nextValue = event.target.value;
+              const formattedValue =
+                nextValue.trim() === ""
+                  ? ""
+                  : formatMoneyInput(parseMoneyInput(nextValue));
+              event.target.value = formattedValue;
+              setCurrentValueInput(formattedValue);
+            }}
+            onFocus={(event) => {
+              if (!currentValueInput || parseMoneyInput(currentValueInput) === 0) {
+                event.target.select();
+              }
+            }}
             required
             className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-slate-900"
           />
@@ -230,9 +268,23 @@ export default function PropertyForm({
           </label>
           <input
             name="monthlyRent"
-            type="number"
-            step="0.01"
-            defaultValue={initialData?.monthlyRent ?? 0}
+            type="text"
+            inputMode="decimal"
+            value={monthlyRentInput}
+            onChange={(event) => {
+              const nextValue = event.target.value;
+              const formattedValue =
+                nextValue.trim() === ""
+                  ? ""
+                  : formatMoneyInput(parseMoneyInput(nextValue));
+              event.target.value = formattedValue;
+              setMonthlyRentInput(formattedValue);
+            }}
+            onFocus={(event) => {
+              if (!monthlyRentInput || parseMoneyInput(monthlyRentInput) === 0) {
+                event.target.select();
+              }
+            }}
             className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-slate-900"
           />
         </div>

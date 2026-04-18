@@ -1,12 +1,17 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { formatMoneyInput, parseMoneyInput } from "@/lib/money-input";
 
 type PurchaseInput = {
   id: string;
   name: string;
   homePrice: number;
   downPaymentPercent: number;
+  includeClosingFeeInEquityLoan: boolean;
+  closingFeePercent: number;
+  includeMansionTaxInEquityLoan: boolean;
+  mansionTaxPercent: number;
   mortgageRate: number;
   mortgageYears: number;
   monthlyHoa: number;
@@ -48,11 +53,17 @@ type ScenarioConfig = {
   y: ScenarioAxis;
 };
 
+const MANSION_TAX_THRESHOLD = 1_000_000;
+
 const defaultPurchase: PurchaseInput = {
   id: "purchase-1",
   name: "Purchase 1",
   homePrice: 2_000_000,
   downPaymentPercent: 10,
+  includeClosingFeeInEquityLoan: false,
+  closingFeePercent: 3,
+  includeMansionTaxInEquityLoan: false,
+  mansionTaxPercent: 1,
   mortgageRate: 6,
   mortgageYears: 30,
   monthlyHoa: 0,
@@ -75,6 +86,34 @@ const defaultInputs: CalculatorInputs = {
   existingProperties: [defaultExistingProperty],
 };
 
+function normalizePurchase(purchase: Partial<PurchaseInput> & { id: string }) {
+  return {
+    ...defaultPurchase,
+    ...purchase,
+  };
+}
+
+function normalizeExistingProperty(
+  property: Partial<ExistingPropertyInput> & { id: string }
+) {
+  return {
+    ...defaultExistingProperty,
+    ...property,
+  };
+}
+
+function normalizeInputs(inputs: CalculatorInputs): CalculatorInputs {
+  return {
+    annualIncome: Number.isFinite(inputs.annualIncome)
+      ? inputs.annualIncome
+      : defaultInputs.annualIncome,
+    purchases: inputs.purchases.map((purchase) => normalizePurchase(purchase)),
+    existingProperties: inputs.existingProperties.map((property) =>
+      normalizeExistingProperty(property)
+    ),
+  };
+}
+
 function monthlyPayment(principal: number, annualRate: number, years: number) {
   if (principal <= 0 || years <= 0) return 0;
 
@@ -95,19 +134,6 @@ function formatCurrency(value: number) {
     currency: "USD",
     maximumFractionDigits: 0,
   }).format(value);
-}
-
-function formatNumberInput(value: number) {
-  if (!Number.isFinite(value)) return "";
-
-  return new Intl.NumberFormat("en-US", {
-    maximumFractionDigits: 0,
-  }).format(value);
-}
-
-function parseFormattedNumber(value: string) {
-  const parsed = Number(value.replace(/[^0-9.-]/g, ""));
-  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function formatPercent(value: number) {
@@ -222,6 +248,30 @@ function axisDefaults(key: ScenarioKey, inputs: CalculatorInputs): ScenarioAxis 
   };
 }
 
+function scenarioReferenceValue(inputs: CalculatorInputs, key: ScenarioKey) {
+  if (key === "existingNetCashFlow") {
+    return formatCurrency(baseExistingNetCashFlow(inputs));
+  }
+
+  const values = inputs.purchases
+    .map((purchase) => purchase[key])
+    .filter((value): value is number => Number.isFinite(value));
+
+  if (values.length === 0) return "—";
+
+  const uniqueValues = [...new Set(values.map((value) => value.toFixed(4)))].map(
+    Number
+  );
+
+  if (uniqueValues.length === 1) {
+    return scenarioOptions[key].format(uniqueValues[0]);
+  }
+
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  return `${scenarioOptions[key].format(min)} to ${scenarioOptions[key].format(max)}`;
+}
+
 function axisValues(axis: ScenarioAxis) {
   const steps = Math.min(Math.max(Math.round(axis.steps), 2), 9);
   const min = Number.isFinite(axis.min) ? axis.min : 0;
@@ -243,6 +293,16 @@ function calculateOpportunity(
   const purchaseResults = inputs.purchases.map((purchase) => {
     const downPayment =
       purchase.homePrice * (purchase.downPaymentPercent / 100);
+    const closingFee =
+      purchase.includeClosingFeeInEquityLoan
+        ? purchase.homePrice * (purchase.closingFeePercent / 100)
+        : 0;
+    const mansionTaxEligible = purchase.homePrice > MANSION_TAX_THRESHOLD;
+    const mansionTax =
+      purchase.includeMansionTaxInEquityLoan && mansionTaxEligible
+        ? purchase.homePrice * (purchase.mansionTaxPercent / 100)
+        : 0;
+    const equityLoanPrincipal = downPayment + closingFee + mansionTax;
     const mortgagePrincipal = Math.max(purchase.homePrice - downPayment, 0);
     const equityLoanRate =
       overrides.equityLoanRate ?? purchase.equityLoanRate;
@@ -251,7 +311,7 @@ function calculateOpportunity(
     const mortgageRate = overrides.mortgageRate ?? purchase.mortgageRate;
     const mortgageYears = overrides.mortgageYears ?? purchase.mortgageYears;
     const equityLoanPayment = monthlyPayment(
-      downPayment,
+      equityLoanPrincipal,
       equityLoanRate,
       equityLoanYears
     );
@@ -269,6 +329,10 @@ function calculateOpportunity(
     return {
       ...purchase,
       downPayment,
+      closingFee,
+      mansionTax,
+      mansionTaxEligible,
+      equityLoanPrincipal,
       mortgagePrincipal,
       equityLoanRate,
       equityLoanYears,
@@ -299,6 +363,14 @@ function calculateOpportunity(
   );
   const downPayment = purchaseResults.reduce(
     (sum, purchase) => sum + purchase.downPayment,
+    0
+  );
+  const closingFee = purchaseResults.reduce(
+    (sum, purchase) => sum + purchase.closingFee,
+    0
+  );
+  const mansionTax = purchaseResults.reduce(
+    (sum, purchase) => sum + purchase.mansionTax,
     0
   );
   const mortgagePrincipal = purchaseResults.reduce(
@@ -351,6 +423,8 @@ function calculateOpportunity(
     existingPropertyResults,
     totalHomePrice,
     downPayment,
+    closingFee,
+    mansionTax,
     mortgagePrincipal,
     equityLoanPayment,
     mortgagePayment,
@@ -380,6 +454,37 @@ function heatmapStyle(costToIncomePercent: number) {
     return { backgroundColor: "#F6E8D8", color: "#6F4B1D" };
   }
   return { backgroundColor: "#F1DDE1", color: "#71313A" };
+}
+
+function ToggleField({
+  label,
+  checked,
+  helper,
+  onChange,
+}: {
+  label: string;
+  checked: boolean;
+  helper?: string;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <label className="flex items-start gap-3 rounded-lg border border-stone-200 bg-white px-3 py-3">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+        className="mt-1 h-4 w-4 rounded border-stone-300 text-[#564B69] focus:ring-[#564B69]"
+      />
+      <span className="min-w-0">
+        <span className="block text-sm font-medium text-stone-900">{label}</span>
+        {helper && (
+          <span className="mt-1 block text-xs leading-5 text-stone-500">
+            {helper}
+          </span>
+        )}
+      </span>
+    </label>
+  );
 }
 
 function NumericField({
@@ -442,11 +547,19 @@ function MoneyField({
           $
         </span>
         <input
+          type="text"
           inputMode="decimal"
-          value={formatNumberInput(value)}
-          onChange={(event) =>
-            onChange(parseFormattedNumber(event.target.value))
-          }
+          value={formatMoneyInput(value)}
+          onChange={(event) => {
+            const nextValue = parseMoneyInput(event.target.value);
+            event.target.value = formatMoneyInput(nextValue);
+            onChange(nextValue);
+          }}
+          onFocus={(event) => {
+            if (value === 0) {
+              event.target.select();
+            }
+          }}
           className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 pl-7 text-stone-950 shadow-sm transition-colors focus:border-[#564B69] focus:outline-none focus:ring-2 focus:ring-[#564B69]/20"
         />
       </span>
@@ -571,19 +684,23 @@ function ScenarioAxisControls({
 }
 
 export default function OpportunityPage() {
-  const [inputs, setInputs] = useState(defaultInputs);
+  const [inputs, setInputs] = useState(() => normalizeInputs(defaultInputs));
   const [scenarioConfig, setScenarioConfig] = useState<ScenarioConfig>(() => ({
     x: axisDefaults("mortgageRate", defaultInputs),
     y: axisDefaults("existingNetCashFlow", defaultInputs),
   }));
 
-  const results = useMemo(() => calculateOpportunity(inputs), [inputs]);
+  const normalizedInputs = useMemo(() => normalizeInputs(inputs), [inputs]);
+  const results = useMemo(
+    () => calculateOpportunity(normalizedInputs),
+    [normalizedInputs]
+  );
   const scenarioGrid = useMemo(() => {
     const xValues = axisValues(scenarioConfig.x);
     const yValues = axisValues(scenarioConfig.y).slice().reverse();
     const cells = yValues.map((yValue) =>
       xValues.map((xValue) => {
-        const scenario = calculateOpportunity(inputs, {
+        const scenario = calculateOpportunity(normalizedInputs, {
           [scenarioConfig.x.key]: xValue,
           [scenarioConfig.y.key]: yValue,
         });
@@ -610,7 +727,12 @@ export default function OpportunityPage() {
     );
 
     return { xValues, yValues, cells, min, max, best, worst };
-  }, [inputs, scenarioConfig]);
+  }, [normalizedInputs, scenarioConfig]);
+  const fixedScenarioKeys = (
+    Object.keys(scenarioOptions) as ScenarioKey[]
+  ).filter(
+    (key) => key !== scenarioConfig.x.key && key !== scenarioConfig.y.key
+  );
 
   const updatePurchase = (
     id: string,
@@ -619,7 +741,9 @@ export default function OpportunityPage() {
     setInputs((current) => ({
       ...current,
       purchases: current.purchases.map((purchase) =>
-        purchase.id === id ? { ...purchase, ...changes } : purchase
+        purchase.id === id
+          ? normalizePurchase({ ...purchase, ...changes })
+          : normalizePurchase(purchase)
       ),
     }));
   };
@@ -631,7 +755,9 @@ export default function OpportunityPage() {
     setInputs((current) => ({
       ...current,
       existingProperties: current.existingProperties.map((property) =>
-        property.id === id ? { ...property, ...changes } : property
+        property.id === id
+          ? normalizeExistingProperty({ ...property, ...changes })
+          : normalizeExistingProperty(property)
       ),
     }));
   };
@@ -639,16 +765,18 @@ export default function OpportunityPage() {
   const addPurchase = () => {
     setInputs((current) => {
       const source =
-        current.purchases[current.purchases.length - 1] ?? defaultPurchase;
+        normalizePurchase(
+          current.purchases[current.purchases.length - 1] ?? defaultPurchase
+        );
       return {
         ...current,
         purchases: [
           ...current.purchases,
-          {
+          normalizePurchase({
             ...source,
             id: makeId("purchase"),
             name: `Purchase ${current.purchases.length + 1}`,
-          },
+          }),
         ],
       };
     });
@@ -667,17 +795,19 @@ export default function OpportunityPage() {
   const addExistingProperty = () => {
     setInputs((current) => {
       const source =
-        current.existingProperties[current.existingProperties.length - 1] ??
-        defaultExistingProperty;
+        normalizeExistingProperty(
+          current.existingProperties[current.existingProperties.length - 1] ??
+            defaultExistingProperty
+        );
       return {
         ...current,
         existingProperties: [
           ...current.existingProperties,
-          {
+          normalizeExistingProperty({
             ...source,
             id: makeId("existing"),
             name: `Existing property ${current.existingProperties.length + 1}`,
-          },
+          }),
         ],
       };
     });
@@ -700,7 +830,7 @@ export default function OpportunityPage() {
         axis.key === currentAxis.key
           ? axis
           : {
-              ...axisDefaults(axis.key, inputs),
+              ...axisDefaults(axis.key, normalizedInputs),
               steps: currentAxis.steps,
             };
 
@@ -712,7 +842,7 @@ export default function OpportunityPage() {
   };
 
   const resetExample = () => {
-    setInputs(defaultInputs);
+    setInputs(normalizeInputs(defaultInputs));
     setScenarioConfig({
       x: axisDefaults("mortgageRate", defaultInputs),
       y: axisDefaults("existingNetCashFlow", defaultInputs),
@@ -767,11 +897,15 @@ export default function OpportunityPage() {
             </div>
 
             <div className="mt-5 space-y-4">
-              {inputs.purchases.map((purchase, index) => {
+              {normalizedInputs.purchases.map((purchase, index) => {
                 const purchaseResult = results.purchaseResults.find(
                   (item) => item.id === purchase.id
                 );
                 const downPayment = purchaseResult?.downPayment ?? 0;
+                const closingFee = purchaseResult?.closingFee ?? 0;
+                const mansionTax = purchaseResult?.mansionTax ?? 0;
+                const equityLoanPrincipal =
+                  purchaseResult?.equityLoanPrincipal ?? downPayment;
 
                 return (
                   <div
@@ -789,7 +923,7 @@ export default function OpportunityPage() {
                       <button
                         type="button"
                         onClick={() => removePurchase(purchase.id)}
-                        disabled={inputs.purchases.length === 1}
+                        disabled={normalizedInputs.purchases.length === 1}
                         className="w-fit rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm font-medium text-stone-600 transition-colors hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-40"
                       >
                         Remove
@@ -851,12 +985,60 @@ export default function OpportunityPage() {
 
                     <div className="mt-4 border-t border-stone-200 pt-4">
                       <p className="text-sm font-semibold text-stone-950">
-                        Synced equity loan for down payment
+                        Synced equity loan for down payment and upfront costs
                       </p>
                       <p className="mt-1 text-sm text-stone-500">
-                        Loan amount: {formatCurrency(downPayment)}
+                        Loan amount: {formatCurrency(equityLoanPrincipal)}
                       </p>
+                      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                        <ToggleField
+                          label="Add closing fee into equity loan"
+                          checked={purchase.includeClosingFeeInEquityLoan}
+                          helper={`Uses ${formatPercent(
+                            purchase.closingFeePercent
+                          )}% of home price.`}
+                          onChange={(checked) =>
+                            updatePurchase(purchase.id, {
+                              includeClosingFeeInEquityLoan: checked,
+                            })
+                          }
+                        />
+                        <ToggleField
+                          label="Add mansion tax into equity loan"
+                          checked={purchase.includeMansionTaxInEquityLoan}
+                          helper={`Only applies above ${formatCurrency(
+                            MANSION_TAX_THRESHOLD
+                          )}.`}
+                          onChange={(checked) =>
+                            updatePurchase(purchase.id, {
+                              includeMansionTaxInEquityLoan: checked,
+                            })
+                          }
+                        />
+                      </div>
                       <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                        <NumericField
+                          label="Closing fee"
+                          value={purchase.closingFeePercent}
+                          step={0.1}
+                          suffix="%"
+                          onChange={(value) =>
+                            updatePurchase(purchase.id, {
+                              closingFeePercent: value,
+                            })
+                          }
+                        />
+                        <NumericField
+                          label="Mansion tax"
+                          value={purchase.mansionTaxPercent}
+                          step={0.1}
+                          suffix="%"
+                          onChange={(value) =>
+                            updatePurchase(purchase.id, {
+                              mansionTaxPercent: value,
+                            })
+                          }
+                        />
                         <NumericField
                           label="Equity loan rate"
                           value={purchase.equityLoanRate}
@@ -878,6 +1060,20 @@ export default function OpportunityPage() {
                               equityLoanYears: value,
                             })
                           }
+                        />
+                      </div>
+                      <div className="mt-3 divide-y divide-stone-100 rounded-lg border border-stone-200 bg-white px-3">
+                        <ResultRow
+                          label="Down payment"
+                          value={formatCurrency(downPayment)}
+                        />
+                        <ResultRow
+                          label="Closing fee financed"
+                          value={formatCurrency(closingFee)}
+                        />
+                        <ResultRow
+                          label="Mansion tax financed"
+                          value={formatCurrency(mansionTax)}
                         />
                       </div>
                     </div>
@@ -953,7 +1149,7 @@ export default function OpportunityPage() {
             </div>
 
             <div className="mt-5 space-y-4">
-              {inputs.existingProperties.map((property, index) => {
+              {normalizedInputs.existingProperties.map((property, index) => {
                 const propertyResult = results.existingPropertyResults.find(
                   (item) => item.id === property.id
                 );
@@ -974,7 +1170,7 @@ export default function OpportunityPage() {
                       <button
                         type="button"
                         onClick={() => removeExistingProperty(property.id)}
-                        disabled={inputs.existingProperties.length === 1}
+                        disabled={normalizedInputs.existingProperties.length === 1}
                         className="w-fit rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm font-medium text-stone-600 transition-colors hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-40"
                       >
                         Remove
@@ -1072,6 +1268,16 @@ export default function OpportunityPage() {
                   <ResultRow
                     label="Equity loans"
                     value={formatCurrency(results.equityLoanPayment)}
+                    tone="cost"
+                  />
+                  <ResultRow
+                    label="Closing fees financed"
+                    value={formatCurrency(results.closingFee)}
+                    tone="cost"
+                  />
+                  <ResultRow
+                    label="Mansion taxes financed"
+                    value={formatCurrency(results.mansionTax)}
                     tone="cost"
                   />
                   <ResultRow
@@ -1180,7 +1386,8 @@ export default function OpportunityPage() {
                   <p className="mt-2">
                     Each purchase runs this formula for its synced equity loan
                     and mortgage, then adds that purchase&apos;s monthly HOA and
-                    monthly tax.
+                    monthly tax. The synced equity loan can optionally finance
+                    closing fees and mansion tax alongside the down payment.
                   </p>
                 </div>
 
@@ -1191,8 +1398,12 @@ export default function OpportunityPage() {
                         {purchase.name || `Purchase ${index + 1}`}
                       </p>
                       <p>
-                        Equity loan: P = {formatCurrency(purchase.downPayment)},
-                        i = {formatRate(purchase.equityLoanMonthlyRate)}, n ={" "}
+                        Equity loan: P ={" "}
+                        {formatCurrency(purchase.equityLoanPrincipal)} ({formatCurrency(
+                          purchase.downPayment
+                        )} down payment + {formatCurrency(purchase.closingFee)}{" "}
+                        closing fee + {formatCurrency(purchase.mansionTax)} mansion
+                        tax), i = {formatRate(purchase.equityLoanMonthlyRate)}, n ={" "}
                         {purchase.equityLoanMonths}. Payment ={" "}
                         <span className="font-semibold text-stone-950">
                           {formatCurrency(purchase.equityLoanPayment)}
@@ -1286,6 +1497,40 @@ export default function OpportunityPage() {
             unavailableKey={scenarioConfig.x.key}
             onChange={(axis) => updateScenarioAxis("y", axis)}
           />
+        </div>
+
+        <div className="mt-4 rounded-xl border border-stone-200 bg-[#F7F4F2] p-4">
+          <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-stone-950">
+                Other assumptions used in every cell
+              </p>
+              <p className="mt-1 text-sm text-stone-500">
+                The heatmap only moves the two selected axes. Everything below
+                stays at the values currently entered above.
+              </p>
+            </div>
+          </div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {fixedScenarioKeys.map((key) => (
+              <div
+                key={key}
+                className="rounded-lg border border-stone-200 bg-white px-4 py-3"
+              >
+                <p className="text-xs font-medium uppercase text-stone-500">
+                  {scenarioOptions[key].label}
+                </p>
+                <p className="mt-2 text-base font-semibold text-stone-950">
+                  {scenarioReferenceValue(normalizedInputs, key)}
+                </p>
+              </div>
+            ))}
+          </div>
+          <p className="mt-3 text-xs leading-5 text-stone-500">
+            Purchase price, down payment, HOA, monthly tax, and any financed
+            closing fee or mansion tax stay exactly as entered for each
+            purchase.
+          </p>
         </div>
 
         <div className="mt-6 overflow-x-auto border border-stone-200 bg-white">

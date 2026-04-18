@@ -5,6 +5,7 @@ const isGithubPages = process.env.GITHUB_PAGES === "true";
 const nextConfig: NextConfig = {
   output: "export",
   trailingSlash: true,
+  allowedDevOrigins: ["127.0.0.1"],
   basePath: isGithubPages ? "/realport" : undefined,
   assetPrefix: isGithubPages ? "/realport/" : undefined,
   images: {

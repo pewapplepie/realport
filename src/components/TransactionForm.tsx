@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { formatMoneyInput, parseMoneyInput } from "@/lib/money-input";
 
 interface TransactionFormProps {
   properties: { id: string; name: string }[];
@@ -15,6 +16,7 @@ export default function TransactionForm({
 }: TransactionFormProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [amountInput, setAmountInput] = useState("");
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -26,7 +28,7 @@ export default function TransactionForm({
       propertyId: formData.get("propertyId") as string,
       type: formData.get("type") as string,
       category: formData.get("category") as string,
-      amount: parseFloat(formData.get("amount") as string),
+      amount: parseMoneyInput(formData.get("amount") as string),
       description: formData.get("description") as string,
       date: formData.get("date") as string,
     };
@@ -117,8 +119,23 @@ export default function TransactionForm({
           </label>
           <input
             name="amount"
-            type="number"
-            step="0.01"
+            type="text"
+            inputMode="decimal"
+            value={amountInput}
+            onChange={(event) => {
+              const nextValue = event.target.value;
+              const formattedValue =
+                nextValue.trim() === ""
+                  ? ""
+                  : formatMoneyInput(parseMoneyInput(nextValue));
+              event.target.value = formattedValue;
+              setAmountInput(formattedValue);
+            }}
+            onFocus={(event) => {
+              if (!amountInput || parseMoneyInput(amountInput) === 0) {
+                event.target.select();
+              }
+            }}
             required
             className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-slate-900"
           />

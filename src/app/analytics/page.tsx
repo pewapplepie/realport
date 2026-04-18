@@ -10,6 +10,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { formatMoneyInput, parseMoneyInput } from "@/lib/money-input";
 
 type BuyVsInvestInputs = {
   includeTaxAnalysis: boolean;
@@ -184,19 +185,6 @@ function formatCompactCurrency(value: number) {
   }).format(value);
 }
 
-function formatNumberInput(value: number) {
-  if (!Number.isFinite(value)) return "";
-
-  return new Intl.NumberFormat("en-US", {
-    maximumFractionDigits: 0,
-  }).format(value);
-}
-
-function parseFormattedNumber(value: string) {
-  const parsed = Number(value.replace(/[^0-9.-]/g, ""));
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
 function formatPercent(value: number) {
   return new Intl.NumberFormat("en-US", {
     maximumFractionDigits: 1,
@@ -263,11 +251,19 @@ function MoneyField({
           $
         </span>
         <input
+          type="text"
           inputMode="decimal"
-          value={formatNumberInput(value)}
-          onChange={(event) =>
-            onChange(parseFormattedNumber(event.target.value))
-          }
+          value={formatMoneyInput(value)}
+          onChange={(event) => {
+            const nextValue = parseMoneyInput(event.target.value);
+            event.target.value = formatMoneyInput(nextValue);
+            onChange(nextValue);
+          }}
+          onFocus={(event) => {
+            if (value === 0) {
+              event.target.select();
+            }
+          }}
           className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 pl-7 text-stone-950 shadow-sm transition-colors focus:border-[#564B69] focus:outline-none focus:ring-2 focus:ring-[#564B69]/20"
         />
       </span>
