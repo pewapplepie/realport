@@ -1,9 +1,17 @@
 import type { PropertyWithTransactions } from "@/lib/types";
+import { calculateTargetDealMetrics } from "@/lib/target-deal";
 
 export function buildPortfolioAnalytics(properties: PropertyWithTransactions[]) {
-  const transactions = properties.flatMap((property) => property.transactions);
-  const totalValue = properties.reduce((sum, p) => sum + p.currentValue, 0);
-  const totalCost = properties.reduce((sum, p) => sum + p.purchasePrice, 0);
+  const ownedProperties = properties.filter(
+    (property) => property.portfolioStage !== "target"
+  );
+  const targetDeals = properties.filter(
+    (property) => property.portfolioStage === "target"
+  );
+
+  const transactions = ownedProperties.flatMap((property) => property.transactions);
+  const totalValue = ownedProperties.reduce((sum, p) => sum + p.currentValue, 0);
+  const totalCost = ownedProperties.reduce((sum, p) => sum + p.purchasePrice, 0);
   const totalAppreciation = totalValue - totalCost;
 
   const totalIncome = transactions
@@ -14,13 +22,13 @@ export function buildPortfolioAnalytics(properties: PropertyWithTransactions[]) 
     .reduce((sum, t) => sum + t.amount, 0);
 
   const netCashFlow = totalIncome - totalExpenses;
-  const monthlyRent = properties.reduce((sum, p) => sum + p.monthlyRent, 0);
+  const monthlyRent = ownedProperties.reduce((sum, p) => sum + p.monthlyRent, 0);
   const roi =
     totalCost > 0
       ? ((netCashFlow + totalAppreciation) / totalCost) * 100
       : 0;
 
-  const allocationByType = properties.reduce(
+  const allocationByType = ownedProperties.reduce(
     (acc, p) => {
       acc[p.propertyType] = (acc[p.propertyType] || 0) + p.currentValue;
       return acc;
@@ -64,7 +72,7 @@ export function buildPortfolioAnalytics(properties: PropertyWithTransactions[]) 
     });
   }
 
-  const propertyPerformance = properties.map((p) => {
+  const propertyPerformance = ownedProperties.map((p) => {
     const pIncome = p.transactions
       .filter((t) => t.type === "income")
       .reduce((sum, t) => sum + t.amount, 0);
@@ -90,9 +98,42 @@ export function buildPortfolioAnalytics(properties: PropertyWithTransactions[]) 
     };
   });
 
+  const targetOpportunityComparison = targetDeals
+    .map((property) => {
+      const metrics = calculateTargetDealMetrics(property);
+      return {
+        id: property.id,
+        name: property.name,
+        city: property.city,
+        state: property.state,
+        purchasePrice: property.purchasePrice,
+        carryingCost: metrics.carryingCost,
+        equityLoanPrincipal: metrics.equityLoanPrincipal,
+        mortgagePrincipal: metrics.mortgagePrincipal,
+        equityLoanPayment: metrics.equityLoanPayment,
+        mortgagePayment: metrics.mortgagePayment,
+        monthlyHoa: property.monthlyHoa,
+        monthlyTax: property.monthlyTax,
+        closingFee: metrics.closingFee,
+        mansionTax: metrics.mansionTax,
+      };
+    })
+    .sort((a, b) => a.carryingCost - b.carryingCost);
+
+  const lowestCarryTarget = targetOpportunityComparison[0] ?? null;
+  const totalTargetPipelineValue = targetOpportunityComparison.reduce(
+    (sum, property) => sum + property.purchasePrice,
+    0
+  );
+  const totalTargetCarry = targetOpportunityComparison.reduce(
+    (sum, property) => sum + property.carryingCost,
+    0
+  );
+
   return {
     summary: {
-      propertyCount: properties.length,
+      propertyCount: ownedProperties.length,
+      targetCount: targetDeals.length,
       totalValue,
       totalCost,
       totalAppreciation,
@@ -101,9 +142,13 @@ export function buildPortfolioAnalytics(properties: PropertyWithTransactions[]) 
       netCashFlow,
       monthlyRent,
       roi: Math.round(roi * 100) / 100,
+      totalTargetPipelineValue,
+      totalTargetCarry,
     },
     allocationByType,
     monthlyCashFlow,
     propertyPerformance,
+    targetOpportunityComparison,
+    lowestCarryTarget,
   };
 }

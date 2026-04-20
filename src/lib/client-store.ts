@@ -18,6 +18,26 @@ import type {
   TransactionRecord,
 } from "@/lib/types";
 
+const defaultPropertyFields = {
+  portfolioStage: "owned",
+  downPaymentPercent: 0,
+  includeClosingFeeInEquityLoan: false,
+  closingFeePercent: 3,
+  includeMansionTaxInEquityLoan: false,
+  mansionTaxPercent: 1,
+  mortgageRate: 0,
+  mortgageYears: 30,
+  monthlyHoa: 0,
+  monthlyTax: 0,
+  equityLoanRate: 0,
+  equityLoanYears: 30,
+  bedrooms: 0,
+  bathrooms: 0,
+  squareFeet: 0,
+  monthlyRent: 0,
+  notes: "",
+} as const;
+
 function nowIso() {
   return new Date().toISOString();
 }
@@ -31,7 +51,11 @@ function byNewestDate<T extends { date: string }>(a: T, b: T) {
 }
 
 function asProperty(id: string, data: Record<string, unknown>) {
-  return { id, ...data } as PropertyRecord;
+  return {
+    id,
+    ...defaultPropertyFields,
+    ...data,
+  } as PropertyRecord;
 }
 
 function asTransaction(id: string, data: Record<string, unknown>) {
@@ -48,9 +72,15 @@ export async function listProperties(userId: string) {
     .sort(byNewestCreated);
 }
 
+export async function listOwnedProperties(userId: string) {
+  const properties = await listProperties(userId);
+  return properties.filter((property) => property.portfolioStage !== "target");
+}
+
 export async function createProperty(userId: string, input: PropertyInput) {
   const timestamp = nowIso();
   const docRef = await addDoc(collection(db, "properties"), {
+    ...defaultPropertyFields,
     ...input,
     userId,
     purchaseDate: new Date(input.purchaseDate).toISOString(),
@@ -89,6 +119,7 @@ export async function updateProperty(
   if (!existing) return null;
 
   const property: PropertyRecord = {
+    ...defaultPropertyFields,
     ...existing,
     ...input,
     purchaseDate: new Date(input.purchaseDate).toISOString(),
@@ -139,7 +170,7 @@ export async function createTransaction(
   input: TransactionInput
 ) {
   const property = await getProperty(userId, input.propertyId);
-  if (!property) return null;
+  if (!property || property.portfolioStage === "target") return null;
 
   const docRef = await addDoc(collection(db, "transactions"), {
     ...input,

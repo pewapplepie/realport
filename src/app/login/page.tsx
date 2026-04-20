@@ -3,6 +3,7 @@
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { useAuth } from "@/components/AuthProvider";
 
 export default function LoginPage() {
@@ -111,19 +112,28 @@ function AuthShell({
   children?: React.ReactNode;
 }) {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8">
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#10161a] px-4 py-10">
+      <Image
+        src="https://images.unsplash.com/photo-1529307474719-3d0a417aaf8a?auto=format&fit=crop&w=1800&q=80"
+        alt="Orange and black high-rise building"
+        fill
+        priority
+        sizes="100vw"
+        className="object-cover object-center"
+      />
+      <div className="absolute inset-0 bg-[linear-gradient(140deg,rgba(11,16,19,0.88)_0%,rgba(11,16,19,0.72)_45%,rgba(11,16,19,0.84)_100%)]" />
+      <div className="relative w-full max-w-md">
+        <div className="mb-8 text-center">
           <Link
             href="/"
-            className="inline-block text-3xl font-bold text-emerald-600 transition-colors hover:text-emerald-700"
+            className="inline-block text-3xl font-bold text-white transition-colors hover:text-[#ADB2D3]"
           >
             RealPort
           </Link>
-          <p className="text-slate-500 mt-2">{subtitle}</p>
+          <p className="mt-2 text-white/72">{subtitle}</p>
         </div>
         {children ?? (
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
+          <div className="rounded-xl border border-white/18 bg-white/94 p-8 shadow-[0_20px_80px_rgba(0,0,0,0.28)] backdrop-blur-sm">
             <h2 className="text-xl font-semibold text-slate-900">{title}</h2>
           </div>
         )}

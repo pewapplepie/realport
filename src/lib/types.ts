@@ -1,3 +1,5 @@
+export type PropertyStage = "owned" | "target";
+
 export type AppUser = {
   id: string;
   name: string;
@@ -6,6 +8,7 @@ export type AppUser = {
 };
 
 export type PropertyInput = {
+  portfolioStage: PropertyStage;
   name: string;
   address: string;
   city: string;
@@ -19,6 +22,17 @@ export type PropertyInput = {
   bathrooms: number;
   squareFeet: number;
   monthlyRent: number;
+  downPaymentPercent: number;
+  includeClosingFeeInEquityLoan: boolean;
+  closingFeePercent: number;
+  includeMansionTaxInEquityLoan: boolean;
+  mansionTaxPercent: number;
+  mortgageRate: number;
+  mortgageYears: number;
+  monthlyHoa: number;
+  monthlyTax: number;
+  equityLoanRate: number;
+  equityLoanYears: number;
   notes: string;
 };
 

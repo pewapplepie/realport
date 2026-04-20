@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { useAuth } from "@/components/AuthProvider";
 import { listPropertiesWithTransactions } from "@/lib/client-store";
 import { buildPortfolioAnalytics } from "@/lib/portfolio-analytics";
@@ -23,6 +24,7 @@ import {
 
 interface Summary {
   propertyCount: number;
+  targetCount: number;
   totalValue: number;
   totalCost: number;
   totalAppreciation: number;
@@ -31,6 +33,8 @@ interface Summary {
   netCashFlow: number;
   monthlyRent: number;
   roi: number;
+  totalTargetPipelineValue: number;
+  totalTargetCarry: number;
 }
 
 interface MonthlyCashFlow {
@@ -51,11 +55,30 @@ interface PropertyPerf {
   roi: number;
 }
 
+interface TargetOpportunity {
+  id: string;
+  name: string;
+  city: string;
+  state: string;
+  purchasePrice: number;
+  carryingCost: number;
+  equityLoanPrincipal: number;
+  mortgagePrincipal: number;
+  equityLoanPayment: number;
+  mortgagePayment: number;
+  monthlyHoa: number;
+  monthlyTax: number;
+  closingFee: number;
+  mansionTax: number;
+}
+
 interface AnalyticsData {
   summary: Summary;
   allocationByType: Record<string, number>;
   monthlyCashFlow: MonthlyCashFlow[];
   propertyPerformance: PropertyPerf[];
+  targetOpportunityComparison: TargetOpportunity[];
+  lowestCarryTarget: TargetOpportunity | null;
 }
 
 const COLORS = ["#564B69", "#477A87", "#B6854E", "#A3545C", "#8D7AA5"];
@@ -102,8 +125,14 @@ export default function DashboardPage() {
   }
 
   if (!data) return null;
-  const { summary, allocationByType, monthlyCashFlow, propertyPerformance } =
-    data;
+  const {
+    summary,
+    allocationByType,
+    monthlyCashFlow,
+    propertyPerformance,
+    targetOpportunityComparison,
+    lowestCarryTarget,
+  } = data;
 
   const pieData = Object.entries(allocationByType).map(([name, value]) => ({
     name: name.charAt(0).toUpperCase() + name.slice(1),
@@ -114,19 +143,79 @@ export default function DashboardPage() {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
-        <Link
-          href="/properties/new"
-          className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-lg transition-colors"
-        >
-          + Add Property
-        </Link>
+        <div className="flex gap-2">
+          <Link
+            href="/properties/new?stage=target"
+            className="px-4 py-2 bg-[#564B69] hover:bg-[#463a55] text-white text-sm font-medium rounded-lg transition-colors"
+          >
+            + Add Target Deal
+          </Link>
+          <Link
+            href="/properties/new?stage=owned"
+            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-lg transition-colors"
+          >
+            + Add Property
+          </Link>
+        </div>
       </div>
+
+      <section className="relative mb-8 overflow-hidden rounded-xl border border-slate-200 bg-[#11161a] text-white">
+        <div className="absolute inset-0">
+          <Image
+            src="https://images.unsplash.com/photo-1511452885600-a3d2c9148a31?auto=format&fit=crop&w=1800&q=80"
+            alt="White and black building during daytime"
+            fill
+            sizes="(min-width: 1024px) 1200px, 100vw"
+            className="object-cover object-center opacity-45"
+          />
+          <div className="absolute inset-0 bg-[linear-gradient(105deg,rgba(12,15,18,0.92)_0%,rgba(12,15,18,0.86)_40%,rgba(12,15,18,0.58)_70%,rgba(12,15,18,0.82)_100%)]" />
+        </div>
+        <div className="relative grid gap-6 px-6 py-8 lg:grid-cols-[1.1fr_0.9fr] lg:px-8">
+          <div className="max-w-2xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#ADB2D3]">
+              Portfolio command
+            </p>
+            <h2 className="mt-3 text-3xl font-semibold leading-tight">
+              Keep the owned portfolio and the next move in the same frame.
+            </h2>
+            <p className="mt-4 max-w-xl text-sm leading-7 text-white/72 sm:text-base">
+              Track live holdings with transaction-backed performance, then compare
+              target deals with full financing assumptions before they join the book.
+            </p>
+          </div>
+          <div className="grid gap-3 self-end sm:grid-cols-3 lg:grid-cols-1">
+            <div className="rounded-lg border border-white/14 bg-white/6 p-4 backdrop-blur-sm">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#ADB2D3]">
+                Portfolio value
+              </p>
+              <p className="mt-2 text-2xl font-semibold">{fmt(summary.totalValue)}</p>
+            </div>
+            <div className="rounded-lg border border-white/14 bg-white/6 p-4 backdrop-blur-sm">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#ADB2D3]">
+                Target deals
+              </p>
+              <p className="mt-2 text-2xl font-semibold">{summary.targetCount}</p>
+            </div>
+            <div className="rounded-lg border border-white/14 bg-white/6 p-4 backdrop-blur-sm">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#C89A62]">
+                Next step
+              </p>
+              <Link
+                href="/opportunity"
+                className="mt-2 inline-flex text-base font-semibold text-white transition-colors hover:text-[#ADB2D3]"
+              >
+                Price the next opportunity
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <StatCard
-          title="Total Portfolio Value"
+          title="Owned Portfolio Value"
           value={fmt(summary.totalValue)}
-          subtitle={`${summary.propertyCount} properties`}
+          subtitle={`${summary.propertyCount} owned properties`}
         />
         <StatCard
           title="Total Appreciation"
@@ -182,7 +271,7 @@ export default function DashboardPage() {
             </ResponsiveContainer>
           ) : (
             <div className="h-64 flex items-center justify-center text-slate-400">
-              No transaction data yet
+              No owned-property transaction data yet
             </div>
           )}
         </div>
@@ -218,30 +307,152 @@ export default function DashboardPage() {
             </ResponsiveContainer>
           ) : (
             <div className="h-64 flex items-center justify-center text-slate-400">
-              No properties yet
+              No owned properties yet
             </div>
           )}
         </div>
       </div>
 
+      <section className="mb-8 space-y-6">
+        <div className="flex items-end justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-900">Target deal pipeline</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Compare the monthly carry and financing mix across the opportunities
+              you are considering.
+            </p>
+          </div>
+          <Link
+            href="/properties/new?stage=target"
+            className="text-sm font-medium text-[#564B69] hover:text-[#463a55]"
+          >
+            Add another target deal
+          </Link>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <StatCard
+            title="Target Deals"
+            value={String(summary.targetCount)}
+            subtitle="Active pipeline"
+          />
+          <StatCard
+            title="Pipeline Value"
+            value={fmt(summary.totalTargetPipelineValue)}
+            subtitle="Combined target prices"
+          />
+          <StatCard
+            title="Lowest Carry"
+            value={lowestCarryTarget ? fmt(lowestCarryTarget.carryingCost) : "—"}
+            subtitle={
+              lowestCarryTarget
+                ? lowestCarryTarget.name
+                : "Add a target deal to compare"
+            }
+          />
+        </div>
+
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+          <div className="px-6 py-4 border-b border-slate-200">
+            <h3 className="text-lg font-semibold text-slate-900">
+              Target opportunity comparison
+            </h3>
+          </div>
+          {targetOpportunityComparison.length === 0 ? (
+            <div className="p-12 text-center text-slate-500">
+              <p className="text-lg mb-2">No target deals yet</p>
+              <p className="text-sm">
+                Add a target deal from the{" "}
+                <Link
+                  href="/properties/new?stage=target"
+                  className="text-[#564B69] hover:text-[#463a55] font-medium"
+                >
+                  Properties page
+                </Link>{" "}
+                to compare monthly carry across opportunities.
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-slate-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                      Target Deal
+                    </th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">
+                      Price
+                    </th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">
+                      Carry Total
+                    </th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">
+                      Equity Loan
+                    </th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">
+                      Mortgage
+                    </th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">
+                      HOA + Tax
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200">
+                  {targetOpportunityComparison.map((deal) => (
+                    <tr key={deal.id} className="hover:bg-slate-50">
+                      <td className="px-6 py-4">
+                        <Link
+                          href={`/properties/detail?id=${deal.id}`}
+                          className="text-sm font-medium text-[#564B69] hover:text-[#463a55]"
+                        >
+                          {deal.name}
+                        </Link>
+                        <p className="text-xs text-slate-500">
+                          {deal.city}, {deal.state}
+                        </p>
+                      </td>
+                      <td className="px-6 py-4 text-right text-sm text-slate-700">
+                        {fmt(deal.purchasePrice)}
+                      </td>
+                      <td className="px-6 py-4 text-right text-sm font-medium text-slate-900">
+                        {fmt(deal.carryingCost)}
+                      </td>
+                      <td className="px-6 py-4 text-right text-sm text-slate-700">
+                        {fmt(deal.equityLoanPrincipal)}
+                      </td>
+                      <td className="px-6 py-4 text-right text-sm text-slate-700">
+                        {fmt(deal.mortgagePrincipal)}
+                      </td>
+                      <td className="px-6 py-4 text-right text-sm text-slate-700">
+                        {fmt(deal.monthlyHoa + deal.monthlyTax)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </section>
+
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
         <div className="px-6 py-4 border-b border-slate-200">
           <h2 className="text-lg font-semibold text-slate-900">
-            Property Comparison
+            Owned Property Comparison
           </h2>
         </div>
 
         {propertyPerformance.length === 0 ? (
           <div className="p-12 text-center text-slate-500">
-            <p className="text-lg mb-2">No properties yet</p>
+            <p className="text-lg mb-2">No owned properties yet</p>
             <p className="text-sm">
               <Link
-                href="/properties/new"
+                href="/properties/new?stage=owned"
                 className="text-emerald-600 hover:text-emerald-700 font-medium"
               >
                 Add your first property
               </Link>{" "}
-              to start tracking your portfolio.
+              to start tracking your live portfolio.
             </p>
           </div>
         ) : (

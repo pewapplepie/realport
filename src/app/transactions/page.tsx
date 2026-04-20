@@ -7,7 +7,7 @@ import { useAuth } from "@/components/AuthProvider";
 import {
   createTransaction,
   deleteTransaction,
-  listProperties,
+  listOwnedProperties,
   listTransactions,
 } from "@/lib/client-store";
 import type { TransactionInput } from "@/lib/types";
@@ -70,7 +70,7 @@ function TransactionsContent() {
 
     Promise.all([
       listTransactions(firebaseUser.uid, propertyId || undefined),
-      listProperties(firebaseUser.uid),
+      listOwnedProperties(firebaseUser.uid),
     ]).then(([txData, propData]) => {
       setTransactions(txData);
       setProperties(propData);

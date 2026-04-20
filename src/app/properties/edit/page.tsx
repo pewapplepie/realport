@@ -88,11 +88,12 @@ function EditPropertyContent() {
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <h1 className="text-2xl font-bold text-slate-900 mb-8">
-        Edit Property
+        {property.portfolioStage === "target" ? "Edit Target Deal" : "Edit Property"}
       </h1>
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
         <PropertyForm
           initialData={property}
+          portfolioStage={property.portfolioStage}
           onSubmit={handleSubmit}
           submitLabel="Save Changes"
         />

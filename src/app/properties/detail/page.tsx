@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/components/AuthProvider";
 import { getPropertyWithTransactions } from "@/lib/client-store";
+import { calculateTargetDealMetrics } from "@/lib/target-deal";
 import type { PropertyWithTransactions } from "@/lib/types";
 
 function fmt(n: number) {
@@ -37,9 +38,7 @@ function PropertyDetailContent() {
   const searchParams = useSearchParams();
   const id = searchParams.get("id");
   const { firebaseUser, loading: authLoading } = useAuth();
-  const [property, setProperty] = useState<PropertyWithTransactions | null>(
-    null
-  );
+  const [property, setProperty] = useState<PropertyWithTransactions | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -82,6 +81,109 @@ function PropertyDetailContent() {
     );
   }
 
+  if (property.portfolioStage === "target") {
+    const metrics = calculateTargetDealMetrics(property);
+
+    return (
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="mb-4">
+          <Link
+            href="/properties"
+            className="inline-flex items-center gap-2 text-sm font-medium text-slate-500 transition-colors hover:text-slate-700"
+          >
+            <span aria-hidden="true">←</span>
+            Back to properties
+          </Link>
+        </div>
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-bold text-slate-900">{property.name}</h1>
+              <span className="inline-block text-xs bg-[#EEE9F4] text-[#564B69] px-2 py-0.5 rounded-full">
+                Target deal
+              </span>
+            </div>
+            <p className="text-slate-500">
+              {property.address}, {property.city}, {property.state} {property.zipCode}
+            </p>
+          </div>
+          <Link
+            href={`/properties/edit?id=${property.id}`}
+            className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium rounded-lg transition-colors"
+          >
+            Edit
+          </Link>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+          <DetailCard label="Target Price" value={fmt(property.purchasePrice)} />
+          <DetailCard label="Carry Total" value={fmt(metrics.carryingCost)} />
+          <DetailCard label="Equity Loan" value={fmt(metrics.equityLoanPrincipal)} />
+          <DetailCard label="Mortgage" value={fmt(metrics.mortgagePrincipal)} />
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+          <div className="bg-white rounded-xl border border-slate-200 p-6">
+            <h3 className="text-sm font-medium text-slate-500 mb-3">Deal Inputs</h3>
+            <dl className="space-y-2 text-sm">
+              <DetailRow label="Type" value={property.propertyType} capitalize />
+              <DetailRow
+                label="Target Close Date"
+                value={new Date(property.purchaseDate).toLocaleDateString()}
+              />
+              <DetailRow
+                label="Down Payment"
+                value={`${property.downPaymentPercent}%`}
+              />
+              <DetailRow
+                label="Mortgage Terms"
+                value={`${property.mortgageRate}% for ${property.mortgageYears} years`}
+              />
+              <DetailRow
+                label="Equity Loan Terms"
+                value={`${property.equityLoanRate}% for ${property.equityLoanYears} years`}
+              />
+              <DetailRow label="Monthly HOA" value={fmt(property.monthlyHoa)} />
+              <DetailRow label="Monthly Tax" value={fmt(property.monthlyTax)} />
+            </dl>
+          </div>
+
+          <div className="bg-white rounded-xl border border-slate-200 p-6">
+            <h3 className="text-sm font-medium text-slate-500 mb-3">
+              Financing Breakdown
+            </h3>
+            <dl className="space-y-2 text-sm">
+              <DetailRow label="Down Payment" value={fmt(metrics.downPayment)} />
+              <DetailRow label="Closing Fee Financed" value={fmt(metrics.closingFee)} />
+              <DetailRow label="Mansion Tax Financed" value={fmt(metrics.mansionTax)} />
+              <DetailRow
+                label="Equity Loan Payment"
+                value={fmt(metrics.equityLoanPayment)}
+              />
+              <DetailRow
+                label="Mortgage Payment"
+                value={fmt(metrics.mortgagePayment)}
+              />
+              <DetailRow
+                label="HOA + Tax"
+                value={fmt(property.monthlyHoa + property.monthlyTax)}
+              />
+            </dl>
+          </div>
+        </div>
+
+        {property.notes && (
+          <div className="bg-white rounded-xl border border-slate-200 p-6 mb-8">
+            <h3 className="text-sm font-medium text-slate-500 mb-2">Notes</h3>
+            <p className="text-sm text-slate-700 whitespace-pre-wrap">
+              {property.notes}
+            </p>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   const appreciation = property.currentValue - property.purchasePrice;
   const totalIncome = property.transactions
     .filter((t) => t.type === "income")
@@ -92,12 +194,20 @@ function PropertyDetailContent() {
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="mb-4">
+        <Link
+          href="/properties"
+          className="inline-flex items-center gap-2 text-sm font-medium text-slate-500 transition-colors hover:text-slate-700"
+        >
+          <span aria-hidden="true">←</span>
+          Back to properties
+        </Link>
+      </div>
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">{property.name}</h1>
           <p className="text-slate-500">
-            {property.address}, {property.city}, {property.state}{" "}
-            {property.zipCode}
+            {property.address}, {property.city}, {property.state} {property.zipCode}
           </p>
         </div>
         <Link
@@ -109,78 +219,32 @@ function PropertyDetailContent() {
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-sm text-slate-500">Purchase Price</p>
-          <p className="text-lg font-semibold text-slate-900">
-            {fmt(property.purchasePrice)}
-          </p>
-        </div>
-        <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-sm text-slate-500">Current Value</p>
-          <p className="text-lg font-semibold text-slate-900">
-            {fmt(property.currentValue)}
-          </p>
-        </div>
-        <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-sm text-slate-500">Appreciation</p>
-          <p
-            className={`text-lg font-semibold ${appreciation >= 0 ? "text-emerald-600" : "text-red-600"}`}
-          >
-            {fmt(appreciation)}
-          </p>
-        </div>
-        <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-sm text-slate-500">Monthly Rent</p>
-          <p className="text-lg font-semibold text-slate-900">
-            {fmt(property.monthlyRent)}
-          </p>
-        </div>
+        <DetailCard label="Purchase Price" value={fmt(property.purchasePrice)} />
+        <DetailCard label="Current Value" value={fmt(property.currentValue)} />
+        <DetailCard label="Appreciation" value={fmt(appreciation)} tone={appreciation >= 0 ? "positive" : "negative"} />
+        <DetailCard label="Monthly Rent" value={fmt(property.monthlyRent)} />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
         <div className="bg-white rounded-xl border border-slate-200 p-6">
           <h3 className="text-sm font-medium text-slate-500 mb-3">Details</h3>
           <dl className="space-y-2 text-sm">
-            <div className="flex justify-between">
-              <dt className="text-slate-500">Type</dt>
-              <dd className="text-slate-900 capitalize">
-                {property.propertyType}
-              </dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-slate-500">Bedrooms</dt>
-              <dd className="text-slate-900">{property.bedrooms}</dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-slate-500">Bathrooms</dt>
-              <dd className="text-slate-900">{property.bathrooms}</dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-slate-500">Square Feet</dt>
-              <dd className="text-slate-900">
-                {property.squareFeet.toLocaleString()}
-              </dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-slate-500">Purchase Date</dt>
-              <dd className="text-slate-900">
-                {new Date(property.purchaseDate).toLocaleDateString()}
-              </dd>
-            </div>
+            <DetailRow label="Type" value={property.propertyType} capitalize />
+            <DetailRow label="Bedrooms" value={String(property.bedrooms)} />
+            <DetailRow label="Bathrooms" value={String(property.bathrooms)} />
+            <DetailRow label="Square Feet" value={property.squareFeet.toLocaleString()} />
+            <DetailRow
+              label="Purchase Date"
+              value={new Date(property.purchaseDate).toLocaleDateString()}
+            />
           </dl>
         </div>
 
         <div className="bg-white rounded-xl border border-slate-200 p-6">
           <h3 className="text-sm font-medium text-slate-500 mb-3">Financials</h3>
           <dl className="space-y-2 text-sm">
-            <div className="flex justify-between">
-              <dt className="text-slate-500">Total Income</dt>
-              <dd className="text-emerald-600 font-medium">{fmt(totalIncome)}</dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-slate-500">Total Expenses</dt>
-              <dd className="text-red-600 font-medium">{fmt(totalExpenses)}</dd>
-            </div>
+            <DetailRow label="Total Income" value={fmt(totalIncome)} tone="positive" />
+            <DetailRow label="Total Expenses" value={fmt(totalExpenses)} tone="negative" />
             <div className="flex justify-between border-t border-slate-200 pt-2">
               <dt className="text-slate-700 font-medium">Net Cash Flow</dt>
               <dd
@@ -260,6 +324,56 @@ function PropertyDetailContent() {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function DetailCard({
+  label,
+  value,
+  tone = "default",
+}: {
+  label: string;
+  value: string;
+  tone?: "default" | "positive" | "negative";
+}) {
+  const toneClass =
+    tone === "positive"
+      ? "text-emerald-600"
+      : tone === "negative"
+        ? "text-red-600"
+        : "text-slate-900";
+
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 p-4">
+      <p className="text-sm text-slate-500">{label}</p>
+      <p className={`text-lg font-semibold ${toneClass}`}>{value}</p>
+    </div>
+  );
+}
+
+function DetailRow({
+  label,
+  value,
+  tone = "default",
+  capitalize = false,
+}: {
+  label: string;
+  value: string;
+  tone?: "default" | "positive" | "negative";
+  capitalize?: boolean;
+}) {
+  const toneClass =
+    tone === "positive"
+      ? "text-emerald-600 font-medium"
+      : tone === "negative"
+        ? "text-red-600 font-medium"
+        : "text-slate-900";
+
+  return (
+    <div className="flex justify-between">
+      <dt className="text-slate-500">{label}</dt>
+      <dd className={`${toneClass} ${capitalize ? "capitalize" : ""}`}>{value}</dd>
     </div>
   );
 }
