@@ -42,6 +42,7 @@ type BuyVsInvestInputs = {
   saltDeductionCap: number;
   otherSaltUsedAnnual: number;
   transferTaxPercent: number;
+  principalPaidOverride: number;
 };
 
 const defaultInputs: BuyVsInvestInputs = {
@@ -74,6 +75,7 @@ const defaultInputs: BuyVsInvestInputs = {
   saltDeductionCap: 40_000,
   otherSaltUsedAnnual: 0,
   transferTaxPercent: 0.11,
+  principalPaidOverride: 0,
 };
 
 const HOLDING_PERIOD_OPTIONS = [5, 10, 15, 20, 30];
@@ -469,6 +471,12 @@ export default function AnalyticsPage() {
       futureHomeValue - balance - sellingCost,
       0
     );
+    const amortizedPrincipalPaid = Math.max(loanAmount - balance, 0);
+    const principalPaid =
+      inputs.principalPaidOverride > 0
+        ? Math.min(inputs.principalPaidOverride, loanAmount)
+        : amortizedPrincipalPaid;
+    const homeCostBasis = Math.max(downPayment + closingCost + principalPaid, 0);
     const homeSaleGain = Math.max(
       futureHomeValue - inputs.housePrice - sellingCost - transferTax,
       0
@@ -501,10 +509,14 @@ export default function AnalyticsPage() {
     const ownerTaxSavings =
       (deductibleMortgageInterest + deductiblePropertyTax) *
       (inputs.marginalTaxRate / 100);
-    const projectedHomeEquity = Math.max(
-      preTaxHomeEquity - homeSaleTax - transferTax + ownerTaxSavings,
+    const homeNetSaleEquity = Math.max(
+      preTaxHomeEquity - homeSaleTax - transferTax,
       0
     );
+    const projectedHomeEquity = Math.max(homeNetSaleEquity + ownerTaxSavings, 0);
+    const homeValueGain = homeNetSaleEquity - homeCostBasis;
+    const homeReturnOnCashPercent =
+      homeCostBasis > 0 ? (homeValueGain / homeCostBasis) * 100 : 0;
     const investedInitial = Math.max(cashNeeded, 0);
     const investedMonthly = inputs.monthlyInvestmentBudget + monthlyRentAdvantage;
     const totalMonthlyInvested = sumMonthlyContributions(
@@ -522,6 +534,11 @@ export default function AnalyticsPage() {
     const investmentTax =
       taxableInvestmentGain * (inputs.investmentGainTaxRate / 100);
     const projectedInvestmentValue = preTaxInvestmentValue - investmentTax;
+    const investmentValueGain = projectedInvestmentValue - investmentPrincipal;
+    const investmentReturnPercent =
+      investmentPrincipal > 0
+        ? (investmentValueGain / investmentPrincipal) * 100
+        : 0;
     const advantage = projectedHomeEquity - projectedInvestmentValue;
     const cashShortfall = Math.max(cashNeeded - inputs.cashAvailable, 0);
 
@@ -547,9 +564,13 @@ export default function AnalyticsPage() {
       impliedHomeAppreciationPercent,
       futureHomeValue,
       balance,
+      amortizedPrincipalPaid,
+      principalPaid,
+      homeCostBasis,
       sellingCost,
       transferTax,
       preTaxHomeEquity,
+      homeNetSaleEquity,
       homeSaleGain,
       taxableHomeSaleGain,
       homeSaleTax,
@@ -558,7 +579,11 @@ export default function AnalyticsPage() {
       deductiblePropertyTax,
       ownerTaxSavings,
       projectedHomeEquity,
+      homeValueGain,
+      homeReturnOnCashPercent,
       projectedInvestmentValue,
+      investmentValueGain,
+      investmentReturnPercent,
       advantage,
       cashShortfall,
     };
@@ -866,6 +891,11 @@ export default function AnalyticsPage() {
                 suffix="yrs"
                 onChange={(value) => update("horizonYears", value)}
               />
+              <MoneyField
+                label="Principal paid by horizon (optional)"
+                value={inputs.principalPaidOverride}
+                onChange={(value) => update("principalPaidOverride", value)}
+              />
             </div>
             <p className="mt-3 rounded-lg border border-[#E3DCE8] bg-[#FBFAFC] px-4 py-3 text-sm leading-6 text-stone-600">
               Implied appreciation is{" "}
@@ -879,6 +909,12 @@ export default function AnalyticsPage() {
                 {holdingPeriodLabel}
               </span>
               .
+            </p>
+            <p className="mt-3 rounded-lg border border-[#E3DCE8] bg-[#F6F4FA] px-4 py-3 text-sm leading-6 text-stone-600">
+              Buy path return uses cash cost basis, not just terminal price change:
+              down payment + closing costs + principal paid. Principal paid is
+              amortized from the loan by default, or uses your manual override.
+              At sale, return is net sale equity compared against that cost basis.
             </p>
 
             <div className="mt-5 border-t border-stone-100 pt-4">
@@ -995,48 +1031,91 @@ export default function AnalyticsPage() {
               {decisionSentence}
             </p>
 
-            <div className="mt-5 grid gap-3 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
-              <div className="rounded-lg border border-stone-200 bg-[#F7F4F2] p-4">
-                <p className="text-xs font-semibold uppercase text-stone-500">
-                  Buy path value
+            <div className="mt-5 grid gap-3 lg:grid-cols-2">
+              <div className="rounded-lg border border-[#DED4E8] bg-[#F9F7FC] p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-[#564B69]">
+                  Buy path return
                 </p>
                 <p className="mt-2 text-xl font-semibold text-stone-950">
-                  {formatCurrency(results.projectedHomeEquity)}
+                  {formatPercent(results.homeReturnOnCashPercent)}%
                 </p>
-                <p className="mt-1 text-xs text-stone-500">
-                  {inputs.includeTaxAnalysis
-                    ? "After-tax net home value"
-                    : "Projected net home equity"}
-                </p>
+                <div className="mt-3 space-y-2 text-xs text-stone-600">
+                  <p>
+                    Cost basis:{" "}
+                    <span className="font-semibold text-stone-950">
+                      {formatCurrency(results.homeCostBasis)}
+                    </span>
+                  </p>
+                  <p>
+                    Net sale equity:{" "}
+                    <span className="font-semibold text-stone-950">
+                      {formatCurrency(results.homeNetSaleEquity)}
+                    </span>
+                  </p>
+                  <p>
+                    Gain over cost basis:{" "}
+                    <span
+                      className={`font-semibold ${
+                        results.homeValueGain >= 0
+                          ? "text-[#477A87]"
+                          : "text-[#A3545C]"
+                      }`}
+                    >
+                      {formatCurrency(results.homeValueGain)}
+                    </span>
+                  </p>
+                </div>
               </div>
               <div className="rounded-lg border border-stone-200 bg-[#F7F4F2] p-4">
-                <p className="text-xs font-semibold uppercase text-stone-500">
-                  Rent + invest value
+                <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">
+                  Rent + invest return
                 </p>
                 <p className="mt-2 text-xl font-semibold text-stone-950">
-                  {formatCurrency(results.projectedInvestmentValue)}
+                  {formatPercent(results.investmentReturnPercent)}%
                 </p>
-                <p className="mt-1 text-xs text-stone-500">
-                  {inputs.includeTaxAnalysis
-                    ? "After-tax market account"
-                    : "Projected market account"}
-                </p>
+                <div className="mt-3 space-y-2 text-xs text-stone-600">
+                  <p>
+                    Capital invested:{" "}
+                    <span className="font-semibold text-stone-950">
+                      {formatCurrency(results.investmentPrincipal)}
+                    </span>
+                  </p>
+                  <p>
+                    Ending account:{" "}
+                    <span className="font-semibold text-stone-950">
+                      {formatCurrency(results.projectedInvestmentValue)}
+                    </span>
+                  </p>
+                  <p>
+                    Gain:{" "}
+                    <span
+                      className={`font-semibold ${
+                        results.investmentValueGain >= 0
+                          ? "text-[#477A87]"
+                          : "text-[#A3545C]"
+                      }`}
+                    >
+                      {formatCurrency(results.investmentValueGain)}
+                    </span>
+                  </p>
+                </div>
               </div>
-              <div className="rounded-lg border border-stone-200 bg-[#F7F4F2] p-4">
-                <p className="text-xs font-semibold uppercase text-stone-500">
-                  Opportunity cost
-                </p>
-                <p
-                  className={`mt-2 text-xl font-semibold ${
-                    buyingLeads ? "text-[#477A87]" : "text-[#A3545C]"
-                  }`}
-                >
-                  {formatCurrency(difference)}
-                </p>
-                <p className="mt-1 text-xs text-stone-500">
-                  Lost by choosing {loserName.toLowerCase()}
-                </p>
-              </div>
+            </div>
+
+            <div className="mt-4 rounded-lg border border-stone-200 bg-white p-4">
+              <p className="text-xs font-semibold uppercase text-stone-500">
+                Opportunity cost
+              </p>
+              <p
+                className={`mt-2 text-xl font-semibold ${
+                  buyingLeads ? "text-[#477A87]" : "text-[#A3545C]"
+                }`}
+              >
+                {formatCurrency(difference)}
+              </p>
+              <p className="mt-1 text-xs text-stone-500">
+                Lost by choosing {loserName.toLowerCase()}
+              </p>
             </div>
 
             <div className="mt-6 grid gap-3">
@@ -1155,6 +1234,28 @@ export default function AnalyticsPage() {
                 value={formatCurrency(results.futureHomeValue)}
               />
               <ComparisonRow
+                label="Cash cost basis (down payment + closing + principal paid)"
+                value={formatCurrency(results.homeCostBasis)}
+              />
+              <ComparisonRow
+                label="Principal paid by horizon"
+                value={formatCurrency(results.principalPaid)}
+              />
+              {inputs.principalPaidOverride > 0 && (
+                <ComparisonRow
+                  label="Amortized principal (before override)"
+                  value={formatCurrency(results.amortizedPrincipalPaid)}
+                />
+              )}
+              <ComparisonRow
+                label="Return on cash cost basis"
+                value={`${formatPercent(results.homeReturnOnCashPercent)}%`}
+              />
+              <ComparisonRow
+                label="Gain over cash cost basis"
+                value={formatCurrency(results.homeValueGain)}
+              />
+              <ComparisonRow
                 label="Implied appreciation"
                 value={`${formatPercent(
                   results.impliedHomeAppreciationPercent
@@ -1214,6 +1315,18 @@ export default function AnalyticsPage() {
               <ComparisonRow
                 label="Starting monthly contribution"
                 value={formatCurrency(results.investedMonthly)}
+              />
+              <ComparisonRow
+                label="Total invested capital"
+                value={formatCurrency(results.investmentPrincipal)}
+              />
+              <ComparisonRow
+                label="Return on invested capital"
+                value={`${formatPercent(results.investmentReturnPercent)}%`}
+              />
+              <ComparisonRow
+                label="Gain over invested capital"
+                value={formatCurrency(results.investmentValueGain)}
               />
               <ComparisonRow
                 label="Annual rent increase"
